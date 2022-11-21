@@ -22,6 +22,7 @@ x = pd.read_csv("C:/Users/hudso/Documents/Programming/Unity & C#/NASA ADC/Downlo
 y = pd.read_csv("C:/Users/hudso/Documents/Programming/Unity & C#/NASA ADC/Downloaded_Files/haworth/FY23_ADC_Longitude_Haworth.csv").to_numpy()
 z = pd.read_csv("C:/Users/hudso/Documents/Programming/Unity & C#/NASA ADC/Downloaded_Files/haworth/FY23_ADC_Height_Haworth.csv").to_numpy()
 s = pd.read_csv("C:/Users/hudso/Documents/Programming/Unity & C#/NASA ADC/Downloaded_Files/haworth/FY23_ADC_Slope_Haworth.csv").to_numpy()
+vis_map = np.random.randint(low=0, high=2, size=x.shape)#temp placeholder for vis map, 0 = not vis 1 = vis
 elapsed = time.time() - start
 print(f"Loading .csv files: {elapsed}")
 
@@ -67,10 +68,19 @@ def isValidPoint(abstract_coor):
     return True
 
 def generatePath(start, end, iterations, slope_w, vis_w, short_w, elev_w): #jump_dist is how far the astrobee can move per iteration of A*, this is essentially a measure of resolution
+    #Scaling values to 0-1 for f cost calculation, s=scaled w=weight
+    slope_s = slope_w * 1
+    vis_s = vis_w * 1
+    short_s = (short_w * 2)
+    elev_s = elev_w * 1
+
+    #initialize vars
     open_list = [[start, distanceToPoint(start, end), 0, [0,0], distanceToPoint(start, end)]] #[[[coordinate], f_cost, g_cost, parent, h_cost]]
     closed = []
     selected_node = []
-    profiling = 0
+    profiling = 0 #use this for profiling code
+    min = 1500
+    max = 0
     for _ in trange(iterations, desc="Iterations of A* Algorithm"):
         # Finds the index of the best open_list node with the least f_cost
         best_f = open_list[0][1]
@@ -105,8 +115,21 @@ def generatePath(start, end, iterations, slope_w, vis_w, short_w, elev_w): #jump
             child_g = distanceToPoint(child, start)
             #child_g = selected_node[2] + distanceToPoint(child, selected_node[0]) #this is the equivalent new way of doing the old way
             child_h = distanceToPoint(child, end)
-            child_f = short_w * (child_g + child_h) + slope_w * s[child[0]]
-
+            # Shortest dist + minimize slope + vis to earth + least elev change
+            if child_g + child_h < min:
+                min = child_g + child_h
+            if child_g + child_h > max:
+                max = child_g + child_h
+            # Find out what value shortest dist is when short_w = 2, then make all the other factors equal that same value when weight is 2
+            child_f = child_g + child_h
+            """
+            child_f = (
+                slope_s * s[child[0], child[1]] + 
+                vis_s * vis_map[child[0], child[1]] + 
+                short_w * (child_g + child_h) + 
+                elev_s * abs(z[child[0], child[1]] - z[selected_node[0][0], selected_node[0][1]])
+            )
+            """
             # Check if it's slope is below 15 degrees
             if not isValidPoint(child):
                 valid_node = False
@@ -170,7 +193,7 @@ def backtracing(start, closed, selected_node):
             return path
         path.append(selected_node[0])
 
-closed, plottable, path = generatePath([0, 0], [1000, 1000], 10000)
+closed, plottable, path = generatePath([0, 0], [20, 20], 10000, 2, 2, 2, 2)
 
 # This is for visualization only not actually necessary
 closed_qua = [abstractToQuantitative(point[0]) for point in closed]
